@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Pairing } from "./parser";
+import { Pairing, Flight } from "./parser";
 
 interface PairingTableProps {
   data: Pairing[];
@@ -12,15 +12,36 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     key: keyof Pairing;
     direction: "ascending" | "descending";
   } | null>(null);
+  const [filters, setFilters] = useState({
+    departureTimeAfter: "",
+    arrivalTimeBefore: "",
+  });
+
+  const headers: { key: keyof Pairing; label: string }[] = [
+    { key: "pairingNumber", label: "Pairing Number" },
+    { key: "operatingDates", label: "Operating Dates" },
+    { key: "blockTime", label: "Block Time" },
+    { key: "tafb", label: "TAFB" },
+    { key: "totalAllowance", label: "Total Allowance" },
+  ];
 
   const sortedData = React.useMemo(() => {
     const sortableData = [...data];
     if (sortConfig !== null) {
       sortableData.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+
+        if (!isNaN(Number(aValue)) && !isNaN(Number(bValue))) {
+          return sortConfig.direction === "ascending"
+            ? Number(aValue) - Number(bValue)
+            : Number(bValue) - Number(aValue);
+        }
+
+        if (aValue < bValue) {
           return sortConfig.direction === "ascending" ? -1 : 1;
         }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
+        if (aValue > bValue) {
           return sortConfig.direction === "ascending" ? 1 : -1;
         }
         return 0;
@@ -29,11 +50,23 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     return sortableData;
   }, [data, sortConfig]);
 
-  const filteredData = sortedData.filter(
-    (item) =>
+  const filteredData = sortedData.filter((item) => {
+    const matchesSearchTerm =
       item.pairingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.operatingDates.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      item.operatingDates.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesFilters = item.flights.every((flight) => {
+      const departureTimeAfter =
+        !filters.departureTimeAfter ||
+        flight.departureTime >= filters.departureTimeAfter;
+      const arrivalTimeBefore =
+        !filters.arrivalTimeBefore ||
+        flight.arrivalTime <= filters.arrivalTimeBefore;
+      return departureTimeAfter && arrivalTimeBefore;
+    });
+
+    return matchesSearchTerm && matchesFilters;
+  });
 
   const requestSort = (key: keyof Pairing) => {
     let direction: "ascending" | "descending" = "ascending";
@@ -63,47 +96,49 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
         onChange={(e) => setSearchTerm(e.target.value)}
         className="mb-4 p-2 border rounded"
       />
+      <div className="mb-4">
+        <label className="mr-2">Departure Time After:</label>
+        <input
+          type="time"
+          value={filters.departureTimeAfter}
+          onChange={(e) =>
+            setFilters({ ...filters, departureTimeAfter: e.target.value })
+          }
+          className="mr-4 p-2 border rounded"
+        />
+        <label className="mr-2">Arrival Time Before:</label>
+        <input
+          type="time"
+          value={filters.arrivalTimeBefore}
+          onChange={(e) =>
+            setFilters({ ...filters, arrivalTimeBefore: e.target.value })
+          }
+          className="p-2 border rounded"
+        />
+      </div>
       <table className="min-w-full bg-gray-600 border-collapse">
         <thead>
           <tr>
-            <th
-              onClick={() => requestSort("pairingNumber")}
-              className="border-b p-2 cursor-pointer"
-            >
-              Pairing Number {getSortIndicator("pairingNumber")}
-            </th>
-            <th
-              onClick={() => requestSort("operatingDates")}
-              className="border-b p-2 cursor-pointer"
-            >
-              Operating Dates {getSortIndicator("operatingDates")}
-            </th>
+            {headers.map((header) => (
+              <th
+                key={header.key}
+                onClick={() => requestSort(header.key)}
+                className="border-b p-2 cursor-pointer"
+              >
+                {header.label} {getSortIndicator(header.key)}
+              </th>
+            ))}
             <th className="border-b p-2">Flights</th>
-            <th
-              onClick={() => requestSort("blockTime")}
-              className="border-b p-2 cursor-pointer"
-            >
-              Block Time {getSortIndicator("blockTime")}
-            </th>
-            <th
-              onClick={() => requestSort("tafb")}
-              className="border-b p-2 cursor-pointer"
-            >
-              TAFB {getSortIndicator("tafb")}
-            </th>
-            <th
-              onClick={() => requestSort("totalAllowance")}
-              className="border-b p-2 cursor-pointer"
-            >
-              Total Allowance {getSortIndicator("totalAllowance")}
-            </th>
           </tr>
         </thead>
         <tbody>
           {filteredData.map((item, index) => (
             <tr key={index} className="border-b text-center">
-              <td className="p-2 border-b">{item.pairingNumber}</td>
-              <td className="p-2 border-b">{item.operatingDates}</td>
+              {headers.map((header) => (
+                <td key={header.key} className="p-2 border-b">
+                  {item[header.key]}
+                </td>
+              ))}
               <td className="p-2 border-b">
                 {item.flights.map((flight, idx) => (
                   <div key={idx} className="mb-2">
@@ -112,9 +147,6 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
                   </div>
                 ))}
               </td>
-              <td className="p-2 border-b">{item.blockTime}</td>
-              <td className="p-2 border-b">{item.tafb}</td>
-              <td className="p-2 border-b">{item.totalAllowance}</td>
             </tr>
           ))}
         </tbody>
