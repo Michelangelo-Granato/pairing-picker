@@ -39,6 +39,11 @@ export default function Home() {
   ) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Clear previous data and show loading state
+      setAllPairings([]);
+      setSelectedMonth("");
+      setIsParsing(true);
+
       const filename = file.name.toLowerCase();
       let yearMonth: string;
 
@@ -57,6 +62,7 @@ export default function Home() {
         
         if (monthIndex === -1) {
           alert('Invalid month name in filename');
+          setIsParsing(false);
           return;
         }
 
@@ -70,25 +76,31 @@ export default function Home() {
           yearMonth = oldFormatMatch[1];
         } else {
           alert('Invalid filename format. Expected format:\n- month_yyzYYYY.pdf (e.g., march_yyz2025.pdf)\n- YYYYMM-YYZ-PairingFile.pdf (e.g., 202503-YYZ-PairingFile.pdf)');
+          setIsParsing(false);
           return;
         }
       }
 
-      setIsParsing(true);
-      const parsedPairings = await parsePDF(file);
-      setIsParsing(false);
-      
-      // Add yearMonth to each pairing
-      const pairingsWithMetadata = parsedPairings.map(pairing => ({
-        ...pairing,
-        yearMonth
-      }));
-      
-      setAllPairings(pairingsWithMetadata);
-      setSelectedMonth(yearMonth);
-      
-      // Save to localStorage
-      localStorage.setItem('pairings', JSON.stringify(pairingsWithMetadata));
+      try {
+        const parsedPairings = await parsePDF(file);
+        
+        // Add yearMonth to each pairing
+        const pairingsWithMetadata = parsedPairings.map(pairing => ({
+          ...pairing,
+          yearMonth
+        }));
+        
+        setAllPairings(pairingsWithMetadata);
+        setSelectedMonth(yearMonth);
+        
+        // Save to localStorage
+        localStorage.setItem('pairings', JSON.stringify(pairingsWithMetadata));
+      } catch (error) {
+        console.error('Error parsing PDF:', error);
+        alert('Error parsing the PDF file. Please try again.');
+      } finally {
+        setIsParsing(false);
+      }
     }
   };
 
@@ -147,7 +159,12 @@ export default function Home() {
           onChange={handleFileUpload}
           className="mb-4"
         />
-        {isParsing && <p className="text-lg">Loading...</p>}
+        {isParsing && (
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-lg">Loading...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+          </div>
+        )}
         {!isParsing && allPairings.length > 0 && (
           <div className="flex flex-col gap-4">
             <p className="text-lg">
