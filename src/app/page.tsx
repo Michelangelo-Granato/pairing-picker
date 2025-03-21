@@ -1,21 +1,111 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Pairing, parsePDF } from "./parser";
 import PairingTable from "./PairingTable";
 
+interface PairingWithMetadata extends Pairing {
+  yearMonth: string;
+}
+
 export default function Home() {
-  const [pairings, setPairings] = useState<Pairing[]>([]);
+  const [allPairings, setAllPairings] = useState<PairingWithMetadata[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [isParsing, setIsParsing] = useState(false);
+
+  // Load saved pairings on component mount
+  useEffect(() => {
+    const savedPairings = localStorage.getItem('pairings');
+    if (savedPairings) {
+      try {
+        const parsedPairings = JSON.parse(savedPairings);
+        // Validate that the parsed data has the correct structure
+        if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0]) {
+          setAllPairings(parsedPairings);
+          // Set initial selected month if there are pairings
+          setSelectedMonth(parsedPairings[0].yearMonth);
+        } else {
+          // If the data structure is invalid, clear localStorage
+          localStorage.removeItem('pairings');
+        }
+      } catch (error) {
+        console.error('Error loading saved pairings:', error);
+        localStorage.removeItem('pairings');
+      }
+    }
+  }, []);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validate filename format
+      const filenameParts = file.name.split('-');
+      if (filenameParts.length < 1 || !/^\d{6}$/.test(filenameParts[0])) {
+        alert('Invalid filename format. Expected format: YYYYMM-YYZ-PairingFile.pdf');
+        return;
+      }
+
       setIsParsing(true);
       const parsedPairings = await parsePDF(file);
       setIsParsing(false);
-      setPairings(parsedPairings);
+      
+      // Extract year and month from filename (format: YYYYMM-YYZ-PairingFile.pdf)
+      const yearMonth = filenameParts[0];
+      
+      // Add yearMonth to each pairing
+      const pairingsWithMetadata = parsedPairings.map(pairing => ({
+        ...pairing,
+        yearMonth
+      }));
+      
+      setAllPairings(pairingsWithMetadata);
+      setSelectedMonth(yearMonth);
+      
+      // Save to localStorage
+      localStorage.setItem('pairings', JSON.stringify(pairingsWithMetadata));
+    }
+  };
+
+  // Get unique months from all pairings
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    allPairings.forEach(pairing => {
+      if (pairing.yearMonth) {
+        months.add(pairing.yearMonth);
+      }
+    });
+    return Array.from(months).sort();
+  }, [allPairings]);
+
+  // Filter pairings based on selected month
+  const filteredPairings = useMemo(() => {
+    if (!selectedMonth) return allPairings;
+    return allPairings.filter(pairing => 
+      pairing.yearMonth === selectedMonth
+    );
+  }, [allPairings, selectedMonth]);
+
+  // Format the month display (e.g., "202504" -> "April 2025")
+  const formatMonthDisplay = (yearMonth: string | undefined) => {
+    if (!yearMonth || yearMonth.length !== 6) return 'Invalid Month';
+    
+    try {
+      const year = yearMonth.substring(0, 4);
+      const month = parseInt(yearMonth.substring(4, 6));
+      
+      if (isNaN(month) || month < 1 || month > 12) {
+        return 'Invalid Month';
+      }
+
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      return `${monthNames[month - 1]} ${year}`;
+    } catch (error) {
+      console.error('Error formatting month:', error);
+      return 'Invalid Month';
     }
   };
 
@@ -33,12 +123,32 @@ export default function Home() {
           className="mb-4"
         />
         {isParsing && <p className="text-lg">Loading...</p>}
-        {!isParsing && pairings.length > 0 && (
-          <p className="text-lg">
-            {pairings.length} Pairings loaded successfully!
-          </p>
+        {!isParsing && allPairings.length > 0 && (
+          <div className="flex flex-col gap-4">
+            <p className="text-lg">
+              {allPairings.length} Pairings loaded successfully!
+            </p>
+            <div className="flex items-center gap-2">
+              <label htmlFor="month-select" className="text-lg">Select Month:</label>
+              <select
+                id="month-select"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="p-2 border rounded"
+              >
+                {availableMonths.map(month => (
+                  <option key={month} value={month}>
+                    {formatMonthDisplay(month)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-lg">
+              Showing {filteredPairings.length} pairings for {formatMonthDisplay(selectedMonth)}
+            </p>
+          </div>
         )}
-        <PairingTable data={pairings} />
+        <PairingTable data={filteredPairings} />
       </main>
     </div>
   );

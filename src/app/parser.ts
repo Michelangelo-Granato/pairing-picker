@@ -27,7 +27,7 @@ export interface Pairing {
   totalAllowance: string;
 }
 
-async function parsePDF(file: File, numPairings: number): Promise<Pairing[]> {
+async function parsePDF(file: File, numPairings?: number): Promise<Pairing[]> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const dataBuffer = Buffer.from(arrayBuffer);
@@ -52,14 +52,14 @@ function getBasePairing() {
   };
 }
 
-function parsePairingFile(lines: string[], numPairings: number): Pairing[] {
+function parsePairingFile(lines: string[], numPairings?: number): Pairing[] {
   const pairings: Pairing[] = [];
   let currentPairing: Pairing = getBasePairing();
   const cleanedLines = lines.filter((line) => line.length > 0);
 
   cleanedLines.splice(0, 3);
   for (const line of cleanedLines) {
-    if (pairings.length == numPairings) {
+    if (numPairings && pairings.length == numPairings) {
       return pairings;
     }
 
@@ -75,17 +75,19 @@ function parsePairingFile(lines: string[], numPairings: number): Pairing[] {
       parsePairingNumber(line, currentPairing)
     )
       continue;
+
     if (parseFlight(line, currentPairing)) continue;
     if (
       parseBlockTime(line, currentPairing) &&
       parseTotalAllowance(line, currentPairing)
     )
       continue;
+
     if (
       parseTAFB(line, currentPairing) &&
       parseTotalFlightTime(line, currentPairing)
-    )
-      continue;
+    ) continue;
+
     if (parseLayover(line, currentPairing)) continue;
   }
 
@@ -96,7 +98,7 @@ function parseOperatingDate(line: string, pairing: Pairing): boolean {
   if (pairing.operatingDates) return false;
 
   if (line.includes("OPERATES/OPER-")) {
-    const operatingDateMatch = line.match(/\w{5}\s+-\s+\w{5}/);
+    const operatingDateMatch = RegExp(/\w{5}\s+-\s+\w{5}/).exec(line);
     if (operatingDateMatch) {
       pairing.operatingDates = operatingDateMatch[0];
       return true;
@@ -110,7 +112,7 @@ function parsePairingNumber(line: string, pairing: Pairing): boolean {
   if (pairing.pairingNumber) return false;
 
   if (line.includes("OPERATES/OPER-")) {
-    const pairingNumberMatch = line.match(/T\d+/);
+    const pairingNumberMatch = RegExp(/T\d+/).exec(line);
     if (pairingNumberMatch) {
       pairing.pairingNumber = pairingNumberMatch[0];
       return true;
@@ -124,7 +126,7 @@ function parseBlockTime(line: string, pairing: Pairing): boolean {
   if (pairing.blockTime) return false;
 
   if (line.includes("BLOCK/H-VOL")) {
-    const blockTimeMatch = line.match(/BLOCK\/H-VOL\s+(\d+)/);
+    const blockTimeMatch = RegExp(/BLOCK\/H-VOL\s+(\d+)/).exec(line);
     if (blockTimeMatch) {
       pairing.blockTime = blockTimeMatch[1];
       return true;
@@ -137,7 +139,7 @@ function parseTotalAllowance(line: string, pairing: Pairing): boolean {
   if (pairing.totalAllowance) return false;
 
   if (line.includes("TOTAL ALLOWANCE")) {
-    const allowanceMatch = line.match(/TOTAL ALLOWANCE -\$\s+(\d+.\d+)/);
+    const allowanceMatch = RegExp(/TOTAL ALLOWANCE -\$\s+(\d+.\d+)/).exec(line);
     if (allowanceMatch) {
       pairing.totalAllowance = allowanceMatch[1];
       return true;
@@ -150,7 +152,7 @@ function parseTAFB(line: string, pairing: Pairing): boolean {
   if (pairing.tafb) return false;
 
   if (line.includes("TAFB/PTEB")) {
-    const tafbMatch = line.match(/TAFB\/PTEB\s+(\d+)/);
+    const tafbMatch = RegExp(/TAFB\/PTEB\s+(\d+)/).exec(line);
     if (tafbMatch) {
       pairing.tafb = tafbMatch[1];
       return true;
@@ -163,7 +165,7 @@ function parseTotalFlightTime(line: string, pairing: Pairing): boolean {
   if (pairing.totalAllowance) return false;
 
   if (line.includes("TOTAL -")) {
-    const totalFlightTimeMatch = line.match(/TOTAL -\s+(\d+)/);
+    const totalFlightTimeMatch = RegExp(/TOTAL -\s+(\d+)/).exec(line);
     if (totalFlightTimeMatch) {
       pairing.totalAllowance = totalFlightTimeMatch[1];
       return true;
@@ -173,9 +175,8 @@ function parseTotalFlightTime(line: string, pairing: Pairing): boolean {
 }
 
 function parseFlight(line: string, pairing: Pairing): boolean {
-  const flightMatch = line.match(
-    /(\d+)\s+(\w+)\s+(\d+)\s+(\w{3})\s(\d{4})\s+(\w{3})\s(\d{4})\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?/
-  );
+  const regex = /(\d+)\s+(\w+)\s+(\d+)\s+(\w{3})\s(\d{4})\s+(\w{3})\s(\d{4})\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?/;
+  const flightMatch = RegExp(regex).exec(line);
   if (flightMatch) {
     if (flightMatch[10]) {
       pairing.layovers++;
@@ -201,7 +202,7 @@ function parseFlight(line: string, pairing: Pairing): boolean {
 }
 
 function parseLayover(line: string, pairing: Pairing): boolean {
-  const layoverMatch = line.match(/\s{2,}(\w+(?:\s\w+)*)\s{2,}/);
+  const layoverMatch = RegExp(/\s{2,}(\w+(?:\s\w+)*)\s{2,}/).exec(line);
   if (layoverMatch) {
     const lastFlight = pairing.flights[pairing.flights.length - 1];
     if (lastFlight?.layover) {
