@@ -39,19 +39,36 @@ export default function Home() {
   ) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate filename format
-      const filenameParts = file.name.split('-');
-      if (filenameParts.length < 1 || !/^\d{6}$/.test(filenameParts[0])) {
-        alert('Invalid filename format. Expected format: YYYYMM-YYZ-PairingFile.pdf');
+      // Validate filename format (e.g., "march_yyz2025.pdf")
+      const filename = file.name.toLowerCase();
+      const match = filename.match(/^([a-z]+)_yyz(\d{4})\.pdf$/);
+      
+      if (!match) {
+        alert('Invalid filename format. Expected format: month_yyzYYYY.pdf (e.g., march_yyz2025.pdf)');
         return;
       }
+
+      const monthName = match[1];
+      const year = match[2];
+
+      // Convert month name to number (1-12)
+      const monthNames = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"
+      ];
+      const monthIndex = monthNames.indexOf(monthName);
+      
+      if (monthIndex === -1) {
+        alert('Invalid month name in filename');
+        return;
+      }
+
+      // Create yearMonth in YYYYMM format
+      const yearMonth = `${year}${String(monthIndex + 1).padStart(2, '0')}`;
 
       setIsParsing(true);
       const parsedPairings = await parsePDF(file);
       setIsParsing(false);
-      
-      // Extract year and month from filename (format: YYYYMM-YYZ-PairingFile.pdf)
-      const yearMonth = filenameParts[0];
       
       // Add yearMonth to each pairing
       const pairingsWithMetadata = parsedPairings.map(pairing => ({
@@ -86,7 +103,7 @@ export default function Home() {
     );
   }, [allPairings, selectedMonth]);
 
-  // Format the month display (e.g., "202504" -> "April 2025")
+  // Format the month display (e.g., "202503" -> "March 2025")
   const formatMonthDisplay = (yearMonth: string | undefined) => {
     if (!yearMonth || yearMonth.length !== 6) return 'Invalid Month';
     
