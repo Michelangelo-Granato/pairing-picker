@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { Pairing } from "./parser";
 import FlightDisplay from "./FlightDisplay";
+import DisplaySettings from "./DisplaySettings";
 
 interface PairingTableProps {
   data: Pairing[];
@@ -13,6 +14,15 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     key: keyof Pairing;
     direction: "ascending" | "descending";
   } | null>(null);
+  const [favoritePairings, setFavoritePairings] = useState<Set<string>>(new Set());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set([
+    "pairingNumber",
+    "operatingDates",
+    "blockTime",
+    "tafb",
+    "totalAllowance"
+  ]));
   const [filters, setFilters] = useState({
     departureTimeAfter: "",
     departureTimeCondition: "greater",
@@ -20,7 +30,51 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     arrivalTimeCondition: "less",
     excludedDays: new Set<number>(), // Days to exclude (1=Monday, 7=Sunday)
     maxFlightsPerDay: "", // New filter for maximum flights per day
+    showFavoritesOnly: false, // New filter for showing only favorites
   });
+
+  // Load favorites and display settings from localStorage on mount
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem('favoritePairings');
+    const savedVisibleColumns = localStorage.getItem('visibleColumns');
+    
+    if (savedFavorites) {
+      setFavoritePairings(new Set(JSON.parse(savedFavorites)));
+    }
+    if (savedVisibleColumns) {
+      setVisibleColumns(new Set(JSON.parse(savedVisibleColumns)));
+    }
+  }, []);
+
+  // Save favorites and display settings to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('favoritePairings', JSON.stringify(Array.from(favoritePairings)));
+    localStorage.setItem('visibleColumns', JSON.stringify(Array.from(visibleColumns)));
+  }, [favoritePairings, visibleColumns]);
+
+  const toggleFavorite = useCallback((pairingNumber: string) => {
+    setFavoritePairings(prev => {
+      const newFavorites = new Set(prev);
+      if (newFavorites.has(pairingNumber)) {
+        newFavorites.delete(pairingNumber);
+      } else {
+        newFavorites.add(pairingNumber);
+      }
+      return newFavorites;
+    });
+  }, []);
+
+  const toggleColumn = useCallback((column: string) => {
+    setVisibleColumns(prev => {
+      const newColumns = new Set(prev);
+      if (newColumns.has(column)) {
+        newColumns.delete(column);
+      } else {
+        newColumns.add(column);
+      }
+      return newColumns;
+    });
+  }, []);
 
   const headers: { key: keyof Pairing; label: string }[] = [
     { key: "pairingNumber", label: "Pairing Number" },
@@ -29,6 +83,9 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     { key: "tafb", label: "TAFB" },
     { key: "totalAllowance", label: "Total Allowance" },
   ];
+
+  // Filter headers based on visible columns
+  const visibleHeaders = headers.filter(header => visibleColumns.has(header.key));
 
   // Memoize the search term in lowercase to avoid recalculation
   const searchTermLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
@@ -76,6 +133,11 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
 
     // Apply filters and search
     return sortableData.filter((item) => {
+      // Check if we're only showing favorites
+      if (filters.showFavoritesOnly && !favoritePairings.has(item.pairingNumber)) {
+        return false;
+      }
+
       // Check pairing number and operating dates
       const matchesBasicInfo = 
         item.pairingNumber.toLowerCase().includes(searchTermLower) ||
@@ -117,7 +179,7 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
 
       return (matchesBasicInfo || matchesFlights) && matchesFilters && matchesMaxFlights;
     });
-  }, [data, sortConfig, searchTermLower, filters, getFlightsPerDay]);
+  }, [data, sortConfig, searchTermLower, filters, getFlightsPerDay, favoritePairings]);
 
   // Memoize the sort handler
   const requestSort = useCallback((key: keyof Pairing) => {
@@ -154,15 +216,24 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
 
   return (
     <div>
-      <div className="flex flex-col gap-2 mb-4">
-        <label className="font-medium">Search</label>
-        <input
-          type="text"
-          placeholder="Search pairings..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="p-2 border rounded"
-        />
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col gap-2 flex-1">
+          <label className="font-medium">Search</label>
+          <input
+            type="text"
+            placeholder="Search pairings..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="p-2 border rounded"
+          />
+        </div>
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="ml-4 p-2 text-gray-400 hover:text-white"
+          title="Display Settings"
+        >
+          ⚙️
+        </button>
       </div>
       <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="flex flex-col gap-2">
@@ -278,10 +349,22 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
           ))}
         </div>
       </div>
+      <div className="mb-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={filters.showFavoritesOnly}
+            onChange={(e) => setFilters(prev => ({ ...prev, showFavoritesOnly: e.target.checked }))}
+            className="rounded"
+          />
+          Show Favorites Only
+        </label>
+      </div>
       <table className="min-w-full bg-gray-600 border-collapse">
         <thead>
           <tr>
-            {headers.map((header) => (
+            <th className="border-b p-2 w-[50px]"></th>
+            {visibleHeaders.map((header) => (
               <th
                 key={header.key}
                 onClick={() => requestSort(header.key)}
@@ -296,12 +379,21 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
         <tbody>
           {filteredData.map((item, index) => (
             <tr key={index} className="border-b text-center">
-              {headers.map((header) => (
+              <td className="p-2 border-b">
+                <button
+                  onClick={() => toggleFavorite(item.pairingNumber)}
+                  className={`text-xl ${favoritePairings.has(item.pairingNumber) ? 'text-yellow-400' : 'text-gray-400'} hover:text-yellow-300 transition-colors`}
+                  title={favoritePairings.has(item.pairingNumber) ? "Remove from favorites" : "Add to favorites"}
+                >
+                  ★
+                </button>
+              </td>
+              {visibleHeaders.map((header) => (
                 <td key={header.key} className="p-2 border-b">
                   {formatCellValue(header.key, String(item[header.key]))}
                 </td>
               ))}
-              <td className="p-2 border-b text-left">
+              <td className="p-2 border-b text-center">
                 {item.flights.map((flight, idx) => (
                   <div key={idx}>
                     <FlightDisplay flight={flight} />
@@ -312,6 +404,13 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
           ))}
         </tbody>
       </table>
+
+      <DisplaySettings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        visibleColumns={visibleColumns}
+        onToggleColumn={toggleColumn}
+      />
     </div>
   );
 };
