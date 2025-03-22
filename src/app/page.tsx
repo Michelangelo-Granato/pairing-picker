@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Pairing } from "./parser";
 import PairingTable from "./PairingTable";
 import Navbar from "./components/Navbar";
+import { useLocalStorage } from "./hooks/useLocalStorage";
 
 interface PairingList {
   yearMonth: string;
@@ -17,37 +18,29 @@ export default function Home() {
   });
   const [isParsing, setIsParsing] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
-  const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(new Set());
-
-  // Load and save selected pairings from/to localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('selectedPairings');
-    if (saved) {
-      setSelectedPairingNumbers(new Set(JSON.parse(saved)));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('selectedPairings', JSON.stringify(Array.from(selectedPairingNumbers)));
-  }, [selectedPairingNumbers]);
+  const [selectedPairingNumbers, setSelectedPairingNumbers] = useLocalStorage<Set<string>>('selectedPairings', new Set());
 
   // Load saved pairings on component mount
   useEffect(() => {
     const loadSavedPairings = async () => {
       try {
-        const savedPairings = localStorage.getItem('pairings');
-        if (savedPairings) {
-          const parsedPairings = JSON.parse(savedPairings);
-          if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
-            setPairingLists(parsedPairings);
-            setSelectedMonth(parsedPairings[0].yearMonth);
-          } else {
-            localStorage.removeItem('pairings');
+        if (typeof window !== 'undefined') {
+          const savedPairings = window.localStorage.getItem('pairings');
+          if (savedPairings) {
+            const parsedPairings = JSON.parse(savedPairings);
+            if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
+              setPairingLists(parsedPairings);
+              setSelectedMonth(parsedPairings[0].yearMonth);
+            } else {
+              window.localStorage.removeItem('pairings');
+            }
           }
         }
       } catch (error) {
         console.error('Error loading saved pairings:', error);
-        localStorage.removeItem('pairings');
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('pairings');
+        }
       } finally {
         setIsLoadingSaved(false);
       }

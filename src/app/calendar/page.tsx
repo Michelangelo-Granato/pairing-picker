@@ -4,6 +4,7 @@ import { Pairing } from "../parser";
 import CalendarView from '../CalendarView';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
+import { useLocalStorage } from "../hooks/useLocalStorage";
 
 interface PairingList {
   yearMonth: string;
@@ -17,40 +18,30 @@ export default function CalendarPage() {
     return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
-  const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(new Set());
-  const [favoritePairings, setFavoritePairings] = useState<Set<string>>(new Set());
+  const [selectedPairingNumbers] = useLocalStorage<Set<string>>('selectedPairings', new Set());
+  const [favoritePairings] = useLocalStorage<Set<string>>('favoritePairings', new Set());
 
-  // Load selected pairings and favorites from localStorage
-  useEffect(() => {
-    const savedSelected = localStorage.getItem('selectedPairings');
-    const savedFavorites = localStorage.getItem('favoritePairings');
-    
-    if (savedSelected) {
-      setSelectedPairingNumbers(new Set(JSON.parse(savedSelected)));
-    }
-    if (savedFavorites) {
-      setFavoritePairings(new Set(JSON.parse(savedFavorites)));
-    }
-  }, []);
-
-  // Load saved pairings and favorites on component mount
+  // Load saved pairings on component mount
   useEffect(() => {
     const loadSavedData = async () => {
       try {
-        const savedPairings = localStorage.getItem('pairings');
-        
-        if (savedPairings) {
-          const parsedPairings = JSON.parse(savedPairings);
-          if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
-            setPairingLists(parsedPairings);
-            setSelectedMonth(parsedPairings[0].yearMonth);
-          } else {
-            localStorage.removeItem('pairings');
+        if (typeof window !== 'undefined') {
+          const savedPairings = window.localStorage.getItem('pairings');
+          if (savedPairings) {
+            const parsedPairings = JSON.parse(savedPairings);
+            if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
+              setPairingLists(parsedPairings);
+              setSelectedMonth(parsedPairings[0].yearMonth);
+            } else {
+              window.localStorage.removeItem('pairings');
+            }
           }
         }
       } catch (error) {
         console.error('Error loading saved data:', error);
-        localStorage.removeItem('pairings');
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('pairings');
+        }
       } finally {
         setIsLoadingSaved(false);
       }
