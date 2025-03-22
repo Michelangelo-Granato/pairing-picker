@@ -11,6 +11,7 @@ export interface Flight {
   dutyTime: string;
   hasLayover: boolean;
   layover: Layover | null;
+  daysOfWeek: number[];  // Array of days (1=Monday, 7=Sunday)
 }
 
 interface Layover {
@@ -182,6 +183,10 @@ function parseFlight(line: string, pairing: Pairing): boolean {
       pairing.layovers++;
     }
 
+    // Parse days of week into array of numbers
+    const daysStr = flightMatch[1];
+    const daysOfWeek = daysStr.split('').map(Number);
+
     pairing.flights.push({
       aircraft: flightMatch[2],
       flightNumber: flightMatch[3],
@@ -195,6 +200,7 @@ function parseFlight(line: string, pairing: Pairing): boolean {
       layover: flightMatch[10]
         ? { hotel: "", duration: flightMatch[10] }
         : null,
+      daysOfWeek
     });
     return true;
   }

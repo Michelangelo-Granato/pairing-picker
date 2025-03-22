@@ -3,12 +3,13 @@ import { useState, useEffect, useMemo } from "react";
 import { Pairing, parsePDF } from "./parser";
 import PairingTable from "./PairingTable";
 
-interface PairingWithMetadata extends Pairing {
+interface PairingList {
   yearMonth: string;
+  pairings: Pairing[];
 }
 
 export default function Home() {
-  const [allPairings, setAllPairings] = useState<PairingWithMetadata[]>([]);
+  const [pairingLists, setPairingLists] = useState<PairingList[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [isParsing, setIsParsing] = useState(false);
 
@@ -19,8 +20,8 @@ export default function Home() {
       try {
         const parsedPairings = JSON.parse(savedPairings);
         // Validate that the parsed data has the correct structure
-        if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0]) {
-          setAllPairings(parsedPairings);
+        if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
+          setPairingLists(parsedPairings);
           // Set initial selected month if there are pairings
           setSelectedMonth(parsedPairings[0].yearMonth);
         } else {
@@ -39,9 +40,7 @@ export default function Home() {
   ) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Clear previous data and show loading state
-      setAllPairings([]);
-      setSelectedMonth("");
+      // Show loading state
       setIsParsing(true);
 
       const filename = file.name.toLowerCase();
@@ -84,17 +83,27 @@ export default function Home() {
       try {
         const parsedPairings = await parsePDF(file);
         
-        // Add yearMonth to each pairing
-        const pairingsWithMetadata = parsedPairings.map(pairing => ({
-          ...pairing,
-          yearMonth
-        }));
-        
-        setAllPairings(pairingsWithMetadata);
+        // Create new pairing list
+        const newPairingList: PairingList = {
+          yearMonth,
+          pairings: parsedPairings
+        };
+
+        // Update pairing lists, replacing existing month if it exists
+        setPairingLists(prevLists => {
+          // Remove any existing list for this month
+          const filteredLists = prevLists.filter(list => list.yearMonth !== yearMonth);
+          // Add the new list and sort by month (newest first)
+          const updatedLists = [...filteredLists, newPairingList].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+          
+          // Save to localStorage with the updated lists
+          localStorage.setItem('pairings', JSON.stringify(updatedLists));
+          
+          return updatedLists;
+        });
+
+        // Set the selected month to the newly uploaded one
         setSelectedMonth(yearMonth);
-        
-        // Save to localStorage
-        localStorage.setItem('pairings', JSON.stringify(pairingsWithMetadata));
       } catch (error) {
         console.error('Error parsing PDF:', error);
         alert('Error parsing the PDF file. Please try again.');
@@ -104,24 +113,10 @@ export default function Home() {
     }
   };
 
-  // Get unique months from all pairings
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    allPairings.forEach(pairing => {
-      if (pairing.yearMonth) {
-        months.add(pairing.yearMonth);
-      }
-    });
-    return Array.from(months).sort();
-  }, [allPairings]);
-
-  // Filter pairings based on selected month
-  const filteredPairings = useMemo(() => {
-    if (!selectedMonth) return allPairings;
-    return allPairings.filter(pairing => 
-      pairing.yearMonth === selectedMonth
-    );
-  }, [allPairings, selectedMonth]);
+  // Get the currently selected pairing list
+  const selectedPairingList = useMemo(() => {
+    return pairingLists.find(list => list.yearMonth === selectedMonth);
+  }, [pairingLists, selectedMonth]);
 
   // Format the month display (e.g., "202503" -> "March 2025")
   const formatMonthDisplay = (yearMonth: string | undefined) => {
@@ -157,7 +152,7 @@ export default function Home() {
           type="file"
           accept="application/pdf"
           onChange={handleFileUpload}
-          className="mb-4"
+          className="mb-4 p-2 border rounded bg-gray-600 text-white cursor-pointer hover:bg-gray-500 transition-colors"
         />
         {isParsing && (
           <div className="flex flex-col items-center gap-2">
@@ -165,11 +160,8 @@ export default function Home() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
           </div>
         )}
-        {!isParsing && allPairings.length > 0 && (
+        {!isParsing && pairingLists.length > 0 && (
           <div className="flex flex-col gap-4">
-            <p className="text-lg">
-              {allPairings.length} Pairings loaded successfully!
-            </p>
             <div className="flex items-center gap-2">
               <label htmlFor="month-select" className="text-lg">Select Month:</label>
               <select
@@ -178,19 +170,23 @@ export default function Home() {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="p-2 border rounded"
               >
-                {availableMonths.map(month => (
-                  <option key={month} value={month}>
-                    {formatMonthDisplay(month)}
+                {pairingLists.map(list => (
+                  <option key={list.yearMonth} value={list.yearMonth}>
+                    {formatMonthDisplay(list.yearMonth)}
                   </option>
                 ))}
               </select>
             </div>
-            <p className="text-lg">
-              Showing {filteredPairings.length} pairings for {formatMonthDisplay(selectedMonth)}
-            </p>
+            {selectedPairingList && (
+              <p className="text-lg">
+                Showing {selectedPairingList.pairings.length} pairings for {formatMonthDisplay(selectedPairingList.yearMonth)}
+              </p>
+            )}
           </div>
         )}
-        <PairingTable data={filteredPairings} />
+        {selectedPairingList && (
+          <PairingTable data={selectedPairingList.pairings} />
+        )}
       </main>
     </div>
   );

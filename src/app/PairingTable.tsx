@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
-import { Pairing, Flight } from "./parser";
+import { Pairing } from "./parser";
+import FlightDisplay from "./FlightDisplay";
 
 interface PairingTableProps {
   data: Pairing[];
@@ -17,6 +18,7 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     departureTimeCondition: "greater",
     arrivalTimeBefore: "",
     arrivalTimeCondition: "less",
+    excludedDays: new Set<number>(), // Days to exclude (1=Monday, 7=Sunday)
   });
 
   const headers: { key: keyof Pairing; label: string }[] = [
@@ -73,6 +75,10 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     });
 
     const matchesFilters = item.flights.every((flight) => {
+      // Check if flight operates on any excluded days
+      const hasExcludedDay = flight.daysOfWeek?.some(day => filters.excludedDays.has(day)) ?? false;
+      if (hasExcludedDay) return false;
+
       const departureTimeAfter =
         !filters.departureTimeAfter ||
         (filters.departureTimeCondition === "greater"
@@ -108,13 +114,6 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     return sortConfig.direction === "ascending" ? "▲" : "▼";
   };
 
-  // Format time to 24h format (e.g., "0815" -> "08:15")
-  const formatTime = (time: string) => {
-    const hours = time.substring(0, 2);
-    const minutes = time.substring(2, 4);
-    return `${hours}:${minutes}`;
-  };
-
   // Format duration in hours and minutes (e.g., "1050" -> "10h 50m")
   const formatDuration = (duration: string) => {
     const hours = Math.floor(parseInt(duration) / 100);
@@ -128,25 +127,6 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
       return formatDuration(value);
     }
     return value;
-  };
-
-  const formatFlightDisplay = (flight: Flight) => {
-    const flightInfo = `${flight.departure} - ${flight.arrival} (${formatTime(flight.departureTime)} - ${formatTime(flight.arrivalTime)}) [${formatDuration(flight.flightTime)}]`;
-    if (flight.hasLayover && flight.layover) {
-      const layoverDuration = flight.layover.duration;
-      const hours = Math.floor(parseInt(layoverDuration) / 100);
-      const minutes = parseInt(layoverDuration) % 100;
-      const formattedDuration = `${hours}h ${minutes}m`;
-      return (
-        <div className="mb-2">
-          {flightInfo}
-          <div className="text-sm text-gray-300 mt-1">
-            Layover: {flight.layover.hotel} ({formattedDuration})
-          </div>
-        </div>
-      );
-    }
-    return <div className="mb-2">{flightInfo}</div>;
   };
 
   return (
@@ -224,6 +204,30 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
           </div>
         </div>
       </div>
+      <div className="mb-4">
+        <label className="font-medium block mb-2">Exclude Days</label>
+        <div className="flex flex-wrap gap-4">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
+            <label key={day} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.excludedDays.has(index + 1)}
+                onChange={(e) => {
+                  const newExcludedDays = new Set(filters.excludedDays);
+                  if (e.target.checked) {
+                    newExcludedDays.add(index + 1);
+                  } else {
+                    newExcludedDays.delete(index + 1);
+                  }
+                  setFilters({ ...filters, excludedDays: newExcludedDays });
+                }}
+                className="rounded"
+              />
+              {day}
+            </label>
+          ))}
+        </div>
+      </div>
       <table className="min-w-full bg-gray-600 border-collapse">
         <thead>
           <tr>
@@ -250,7 +254,7 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
               <td className="p-2 border-b text-left">
                 {item.flights.map((flight, idx) => (
                   <div key={idx}>
-                    {formatFlightDisplay(flight)}
+                    <FlightDisplay flight={flight} />
                   </div>
                 ))}
               </td>
