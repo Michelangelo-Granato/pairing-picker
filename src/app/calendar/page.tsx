@@ -17,20 +17,28 @@ export default function CalendarPage() {
     return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
-  const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem('selectedPairings');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
+  const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(new Set());
   const [favoritePairings, setFavoritePairings] = useState<Set<string>>(new Set());
+
+  // Load selected pairings and favorites from localStorage
+  useEffect(() => {
+    const savedSelected = localStorage.getItem('selectedPairings');
+    const savedFavorites = localStorage.getItem('favoritePairings');
+    
+    if (savedSelected) {
+      setSelectedPairingNumbers(new Set(JSON.parse(savedSelected)));
+    }
+    if (savedFavorites) {
+      setFavoritePairings(new Set(JSON.parse(savedFavorites)));
+    }
+  }, []);
 
   // Load saved pairings and favorites on component mount
   useEffect(() => {
     const loadSavedData = async () => {
       try {
         const savedPairings = localStorage.getItem('pairings');
-        const savedFavorites = localStorage.getItem('favoritePairings');
-        const savedSelected = localStorage.getItem('selectedPairings');
-
+        
         if (savedPairings) {
           const parsedPairings = JSON.parse(savedPairings);
           if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
@@ -39,14 +47,6 @@ export default function CalendarPage() {
           } else {
             localStorage.removeItem('pairings');
           }
-        }
-
-        if (savedFavorites) {
-          setFavoritePairings(new Set(JSON.parse(savedFavorites)));
-        }
-
-        if (savedSelected) {
-          setSelectedPairingNumbers(new Set(JSON.parse(savedSelected)));
         }
       } catch (error) {
         console.error('Error loading saved data:', error);

@@ -17,12 +17,16 @@ export default function Home() {
   });
   const [isParsing, setIsParsing] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
-  const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem('selectedPairings');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
+  const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(new Set());
 
-  // Save selected pairings to localStorage when they change
+  // Load and save selected pairings from/to localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('selectedPairings');
+    if (saved) {
+      setSelectedPairingNumbers(new Set(JSON.parse(saved)));
+    }
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('selectedPairings', JSON.stringify(Array.from(selectedPairingNumbers)));
   }, [selectedPairingNumbers]);
