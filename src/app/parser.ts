@@ -105,7 +105,7 @@ function parseBlockTime(line: string, pairing: Pairing): boolean {
 }
 
 function parseThirdLine(line: string, currentPairing: Pairing) {
-  return parseTotalFlightTime(line, currentPairing) && parseTAFB(line, currentPairing)
+  return parseTAFB(line, currentPairing) && parseTotalFlightTime(line, currentPairing)
  }
 
 function parseTotalAllowance(line: string, pairing: Pairing): boolean {
@@ -216,7 +216,6 @@ function parsePairingFile(lines: string[], numPairings?: number): Pairing[] {
     if (parseSecondLine(line, currentPairing)) continue;
     if (parseThirdLine(line, currentPairing)) continue;
     if (parseLayover(line, currentPairing)) continue;
-    
   }
 
   return pairings;
