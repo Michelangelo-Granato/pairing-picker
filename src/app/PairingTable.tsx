@@ -5,6 +5,21 @@ import { Pairing } from "./parser";
 import FlightDisplay from "./FlightDisplay";
 import DisplaySettings from "./DisplaySettings";
 import debounce from 'lodash/debounce';
+import airports from '../data/airports.json';
+
+interface Airport {
+  iata: string;
+  city: string;
+  name: string;
+}
+
+// Create a static map for airport codes to cities
+const airportToCity = new Map<string, string>();
+(airports as Airport[]).forEach(airport => {
+  if (airport.iata && airport.city) {
+    airportToCity.set(airport.iata.toUpperCase(), airport.city);
+  }
+});
 
 interface PairingTableProps {
   data: Pairing[];
@@ -15,14 +30,20 @@ interface PairingTableProps {
 // Memoize expensive computations outside component
 const createFlightIndex = (pairing: Pairing) => {
   return pairing.flights.reduce((acc, flight) => {
-    const layoverHotel = flight.hasLayover && flight.layover ? flight.layover.hotel.toLowerCase() : '';
+    const departureCity = airportToCity.get(flight.departure.toUpperCase()) || '';
+    const arrivalCity = airportToCity.get(flight.arrival.toUpperCase()) || '';
+    
     acc.push(
       flight.departure.toLowerCase(),
+      departureCity.toLowerCase(),
       flight.arrival.toLowerCase(),
-      layoverHotel
+      arrivalCity.toLowerCase()
     );
+    if (flight.hasLayover && flight.layover) {
+      acc.push(flight.layover.hotel.toLowerCase());
+    }
     return acc;
-  }, [] as string[]).filter(Boolean).join(' ');
+  }, [] as string[]).join(' ');
 };
 
 // Row component for virtualized list
@@ -61,7 +82,7 @@ const Row = React.memo(({
       }`}
       onClick={() => handleRowClick(item.pairingNumber)}
     >
-      <div className="p-1 w-[60px] flex-shrink-0">
+      <div className="p-1 w-[60px] flex-shrink-0 flex items-center justify-center h-full">
         <button
           onClick={(e) => toggleFavorite(e, item.pairingNumber)}
           className={`text-xl ${favoritePairings.has(item.pairingNumber) ? 'text-yellow-400' : 'text-gray-400'} hover:text-yellow-300 transition-colors`}
@@ -161,9 +182,9 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
 
   // Memoize filter function
   const filterPairing = useCallback((item: Pairing) => {
-    // Early returns for quick filtering
-    if (filters.showFavoritesOnly && !favoritePairings.has(item.pairingNumber)) {
-      return false;
+    // When showing favorites only, ignore all other filters
+    if (filters.showFavoritesOnly) {
+      return favoritePairings.has(item.pairingNumber);
     }
 
     if (searchTerm) {
