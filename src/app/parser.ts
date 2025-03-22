@@ -190,7 +190,7 @@ function parseLayover(line: string, pairing: Pairing): boolean {
   return false;
 }
 
-function parsePairingFile(lines: string[], numPairings?: number): Pairing[] {
+export async function parsePairingFile(lines: string[], numPairings?: number): Promise<Pairing[]> {
   const pairings: Pairing[] = [];
   let currentPairing: Pairing = getBasePairing();
   const cleanedLines = lines.filter((line) => line.length > 0);

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "set NODE_OPTIONS=--inspect && next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -11,12 +11,16 @@
   },
   "dependencies": {
     "@types/jquery": "^3.5.32",
+    "@types/lodash": "^4.17.16",
+    "@types/react-window": "^1.8.8",
     "airport-codes": "^1.0.2",
     "jquery": "^3.7.1",
+    "lodash": "^4.17.21",
     "next": "15.2.2",
     "pdf-parse": "^1.1.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-window": "^1.8.11"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
