@@ -55,6 +55,10 @@ function getBasePairing(): Pairing {
   };
 }
 
+function parseFirstLine(line: string, currentPairing: Pairing) {
+  return parseOperatingDate(line, currentPairing) && parsePairingNumber(line, currentPairing)
+}
+
 function parseOperatingDate(line: string, pairing: Pairing): boolean {
   if (pairing.operatingDates) return false;
 
@@ -83,6 +87,10 @@ function parsePairingNumber(line: string, pairing: Pairing): boolean {
   return false;
 }
 
+function parseSecondLine(line: string, currentPairing: Pairing) {
+  return parseBlockTime(line, currentPairing) && parseTotalAllowance(line, currentPairing)
+ }
+
 function parseBlockTime(line: string, pairing: Pairing): boolean {
   if (pairing.blockTime) return false;
 
@@ -95,6 +103,10 @@ function parseBlockTime(line: string, pairing: Pairing): boolean {
   }
   return false;
 }
+
+function parseThirdLine(line: string, currentPairing: Pairing) {
+  return parseTotalFlightTime(line, currentPairing) && parseTAFB(line, currentPairing)
+ }
 
 function parseTotalAllowance(line: string, pairing: Pairing): boolean {
   if (pairing.totalAllowance) return false;
@@ -199,16 +211,12 @@ function parsePairingFile(lines: string[], numPairings?: number): Pairing[] {
     }
 
     // Try to parse each field in order of most common occurrence
-    if (parseOperatingDate(line, currentPairing) ||
-        parsePairingNumber(line, currentPairing) ||
-        parseFlight(line, currentPairing) ||
-        parseBlockTime(line, currentPairing) ||
-        parseTotalAllowance(line, currentPairing) ||
-        parseTAFB(line, currentPairing) ||
-        parseTotalFlightTime(line, currentPairing) ||
-        parseLayover(line, currentPairing)) {
-      continue;
-    }
+    if (parseFirstLine(line, currentPairing)) continue;
+    if (parseFlight(line, currentPairing)) continue;
+    if (parseSecondLine(line, currentPairing)) continue;
+    if (parseThirdLine(line, currentPairing)) continue;
+    if (parseLayover(line, currentPairing)) continue;
+    
   }
 
   return pairings;
