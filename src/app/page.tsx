@@ -146,7 +146,7 @@ export default function Home() {
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
         <h1 className="text-2xl font-bold">Pairing Picker</h1>
         <p className="text-lg text-center">
-          Welcome Fauve, please upload your pairing file to get started.
+          Welcome, please upload your pairing file to get started.
         </p>
         <input
           type="file"
