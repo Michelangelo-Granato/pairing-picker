@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Flight } from "./parser";
 import airports from '../data/airports.json';
 
@@ -13,23 +13,16 @@ interface FlightDisplayProps {
   flight: Flight;
 }
 
+// Create a static map for airport codes to cities
+const airportToCity = new Map<string, string>();
+(airports as Airport[]).forEach(airport => {
+  if (airport.iata && airport.city) {
+    airportToCity.set(airport.iata.toUpperCase(), airport.city);
+  }
+});
+
 const FlightDisplay: React.FC<FlightDisplayProps> = ({ flight }) => {
-  const [airportToCity, setAirportToCity] = useState<Map<string, string>>(new Map());
-  const [isAirportsLoaded, setIsAirportsLoaded] = useState(false);
-
-  useEffect(() => {
-    const map = new Map<string, string>();
-    (airports as Airport[]).forEach(airport => {
-      if (airport.iata && airport.city) {
-        map.set(airport.iata.toUpperCase(), airport.city);
-      }
-    });
-    setAirportToCity(map);
-    setIsAirportsLoaded(true);
-  }, []);
-
   const getCityName = (code: string) => {
-    if (!isAirportsLoaded) return code;
     const city = airportToCity.get(code.toUpperCase());
     if (!city) {
       console.warn(`City not found for airport code: ${code}`);
@@ -104,4 +97,4 @@ const FlightDisplay: React.FC<FlightDisplayProps> = ({ flight }) => {
   );
 };
 
-export default FlightDisplay; 
+export default React.memo(FlightDisplay); 

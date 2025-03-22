@@ -1,5 +1,9 @@
 "use server";
 import pdf from "pdf-parse";
+
+// Cache for parsed PDFs
+const pdfCache = new Map<string, Promise<Pairing[]>>();
+
 export interface Flight {
   aircraft: string;
   flightNumber: string;
@@ -18,6 +22,7 @@ interface Layover {
   hotel: string;
   duration: string;
 }
+
 export interface Pairing {
   pairingNumber: string;
   operatingDates: string;
@@ -28,20 +33,17 @@ export interface Pairing {
   totalAllowance: string;
 }
 
-async function parsePDF(file: File, numPairings?: number): Promise<Pairing[]> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const dataBuffer = Buffer.from(arrayBuffer);
-    const data = await pdf(dataBuffer);
-    const lines = data.text.split("\n");
-    const result = parsePairingFile(lines, numPairings);
-    return result;
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-function getBasePairing() {
+// Pre-compile regex patterns for better performance
+const OPERATING_DATE_REGEX = /\w{5}\s+-\s+\w{5}/;
+const PAIRING_NUMBER_REGEX = /T\d+/;
+const BLOCK_TIME_REGEX = /BLOCK\/H-VOL\s+(\d+)/;
+const ALLOWANCE_REGEX = /TOTAL ALLOWANCE -\$\s+(\d+.\d+)/;
+const TAFB_REGEX = /TAFB\/PTEB\s+(\d+)/;
+const TOTAL_FLIGHT_TIME_REGEX = /TOTAL -\s+(\d+)/;
+const FLIGHT_REGEX = /(\d+)\s+(\w+)\s+(\d+)\s+(\w{3})\s(\d{4})\s+(\w{3})\s(\d{4})\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?/;
+const LAYOVER_REGEX = /\s{2,}(\w+(?:\s\w+)*)\s{2,}/;
+
+function getBasePairing(): Pairing {
   return {
     pairingNumber: "",
     operatingDates: "",
@@ -53,53 +55,11 @@ function getBasePairing() {
   };
 }
 
-function parsePairingFile(lines: string[], numPairings?: number): Pairing[] {
-  const pairings: Pairing[] = [];
-  let currentPairing: Pairing = getBasePairing();
-  const cleanedLines = lines.filter((line) => line.length > 0);
-
-  cleanedLines.splice(0, 3);
-  for (const line of cleanedLines) {
-    if (numPairings && pairings.length == numPairings) {
-      return pairings;
-    }
-
-    const endOfPairingMatch = line.startsWith("=");
-    if (endOfPairingMatch) {
-      pairings.push(currentPairing);
-      currentPairing = getBasePairing();
-      continue;
-    }
-
-    if (
-      parseOperatingDate(line, currentPairing) &&
-      parsePairingNumber(line, currentPairing)
-    )
-      continue;
-
-    if (parseFlight(line, currentPairing)) continue;
-    if (
-      parseBlockTime(line, currentPairing) &&
-      parseTotalAllowance(line, currentPairing)
-    )
-      continue;
-
-    if (
-      parseTAFB(line, currentPairing) &&
-      parseTotalFlightTime(line, currentPairing)
-    ) continue;
-
-    if (parseLayover(line, currentPairing)) continue;
-  }
-
-  return pairings;
-}
-
 function parseOperatingDate(line: string, pairing: Pairing): boolean {
   if (pairing.operatingDates) return false;
 
   if (line.includes("OPERATES/OPER-")) {
-    const operatingDateMatch = RegExp(/\w{5}\s+-\s+\w{5}/).exec(line);
+    const operatingDateMatch = OPERATING_DATE_REGEX.exec(line);
     if (operatingDateMatch) {
       pairing.operatingDates = operatingDateMatch[0];
       return true;
@@ -113,7 +73,7 @@ function parsePairingNumber(line: string, pairing: Pairing): boolean {
   if (pairing.pairingNumber) return false;
 
   if (line.includes("OPERATES/OPER-")) {
-    const pairingNumberMatch = RegExp(/T\d+/).exec(line);
+    const pairingNumberMatch = PAIRING_NUMBER_REGEX.exec(line);
     if (pairingNumberMatch) {
       pairing.pairingNumber = pairingNumberMatch[0];
       return true;
@@ -127,7 +87,7 @@ function parseBlockTime(line: string, pairing: Pairing): boolean {
   if (pairing.blockTime) return false;
 
   if (line.includes("BLOCK/H-VOL")) {
-    const blockTimeMatch = RegExp(/BLOCK\/H-VOL\s+(\d+)/).exec(line);
+    const blockTimeMatch = BLOCK_TIME_REGEX.exec(line);
     if (blockTimeMatch) {
       pairing.blockTime = blockTimeMatch[1];
       return true;
@@ -140,7 +100,7 @@ function parseTotalAllowance(line: string, pairing: Pairing): boolean {
   if (pairing.totalAllowance) return false;
 
   if (line.includes("TOTAL ALLOWANCE")) {
-    const allowanceMatch = RegExp(/TOTAL ALLOWANCE -\$\s+(\d+.\d+)/).exec(line);
+    const allowanceMatch = ALLOWANCE_REGEX.exec(line);
     if (allowanceMatch) {
       pairing.totalAllowance = allowanceMatch[1];
       return true;
@@ -153,7 +113,7 @@ function parseTAFB(line: string, pairing: Pairing): boolean {
   if (pairing.tafb) return false;
 
   if (line.includes("TAFB/PTEB")) {
-    const tafbMatch = RegExp(/TAFB\/PTEB\s+(\d+)/).exec(line);
+    const tafbMatch = TAFB_REGEX.exec(line);
     if (tafbMatch) {
       pairing.tafb = tafbMatch[1];
       return true;
@@ -166,7 +126,7 @@ function parseTotalFlightTime(line: string, pairing: Pairing): boolean {
   if (pairing.totalAllowance) return false;
 
   if (line.includes("TOTAL -")) {
-    const totalFlightTimeMatch = RegExp(/TOTAL -\s+(\d+)/).exec(line);
+    const totalFlightTimeMatch = TOTAL_FLIGHT_TIME_REGEX.exec(line);
     if (totalFlightTimeMatch) {
       pairing.totalAllowance = totalFlightTimeMatch[1];
       return true;
@@ -176,8 +136,7 @@ function parseTotalFlightTime(line: string, pairing: Pairing): boolean {
 }
 
 function parseFlight(line: string, pairing: Pairing): boolean {
-  const regex = /(\d+)\s+(\w+)\s+(\d+)\s+(\w{3})\s(\d{4})\s+(\w{3})\s(\d{4})\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?/;
-  const flightMatch = RegExp(regex).exec(line);
+  const flightMatch = FLIGHT_REGEX.exec(line);
   if (flightMatch) {
     if (flightMatch[10]) {
       pairing.layovers++;
@@ -208,7 +167,7 @@ function parseFlight(line: string, pairing: Pairing): boolean {
 }
 
 function parseLayover(line: string, pairing: Pairing): boolean {
-  const layoverMatch = RegExp(/\s{2,}(\w+(?:\s\w+)*)\s{2,}/).exec(line);
+  const layoverMatch = LAYOVER_REGEX.exec(line);
   if (layoverMatch) {
     const lastFlight = pairing.flights[pairing.flights.length - 1];
     if (lastFlight?.layover) {
@@ -217,6 +176,72 @@ function parseLayover(line: string, pairing: Pairing): boolean {
     return true;
   }
   return false;
+}
+
+function parsePairingFile(lines: string[], numPairings?: number): Pairing[] {
+  const pairings: Pairing[] = [];
+  let currentPairing: Pairing = getBasePairing();
+  const cleanedLines = lines.filter((line) => line.length > 0);
+
+  // Skip header lines
+  cleanedLines.splice(0, 3);
+
+  for (const line of cleanedLines) {
+    if (numPairings && pairings.length === numPairings) {
+      return pairings;
+    }
+
+    const endOfPairingMatch = line.startsWith("=");
+    if (endOfPairingMatch) {
+      pairings.push(currentPairing);
+      currentPairing = getBasePairing();
+      continue;
+    }
+
+    // Try to parse each field in order of most common occurrence
+    if (parseOperatingDate(line, currentPairing) ||
+        parsePairingNumber(line, currentPairing) ||
+        parseFlight(line, currentPairing) ||
+        parseBlockTime(line, currentPairing) ||
+        parseTotalAllowance(line, currentPairing) ||
+        parseTAFB(line, currentPairing) ||
+        parseTotalFlightTime(line, currentPairing) ||
+        parseLayover(line, currentPairing)) {
+      continue;
+    }
+  }
+
+  return pairings;
+}
+
+async function parsePDF(file: File, numPairings?: number): Promise<Pairing[]> {
+  try {
+    // Create a cache key based on file name and size
+    const cacheKey = `${file.name}-${file.size}`;
+    
+    // Check if we have a cached result
+    if (pdfCache.has(cacheKey)) {
+      return pdfCache.get(cacheKey)!;
+    }
+
+    // Create a new promise for parsing
+    const parsePromise = (async () => {
+      const arrayBuffer = await file.arrayBuffer();
+      const dataBuffer = Buffer.from(arrayBuffer);
+      const data = await pdf(dataBuffer);
+      const lines = data.text.split("\n");
+      return parsePairingFile(lines, numPairings);
+    })();
+
+    // Cache the promise
+    pdfCache.set(cacheKey, parsePromise);
+
+    // Return the result
+    return await parsePromise;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export { parsePDF };
