@@ -541,8 +541,8 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
             )}
           </div>
         </div>
-        <div className="overflow-x-auto -mx-4 sm:mx-0">
-          <div className="min-w-[1000px] px-2 sm:px-0">
+        <div className="overflow-x-auto mx-0 sm:-mx-0">
+          <div className="min-w-[1000px] px-0 sm:px-0">
             <div className="w-full bg-gray-600">
               <div className="flex border-b">
                 <div className="p-1 w-[60px] flex-shrink-0"></div>

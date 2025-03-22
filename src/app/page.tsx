@@ -10,7 +10,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <Navbar />
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 2xl:max-w-[1536px] py-4 sm:py-8">
+      <div className="container mx-auto px-0 sm:px-6 lg:px-8 2xl:max-w-[1536px] py-4 sm:py-8">
         <PairingManager />
       </div>
     </div>
