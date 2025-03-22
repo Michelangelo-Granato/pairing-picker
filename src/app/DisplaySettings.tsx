@@ -31,7 +31,7 @@ const DisplaySettings: React.FC<DisplaySettingsProps> = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
+  }, [buttonRef, onClose]);
 
   if (!isOpen) return null;
 

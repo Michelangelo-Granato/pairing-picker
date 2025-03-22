@@ -104,7 +104,7 @@ export default function PairingManager() {
         const parsedPairings = savedPairings ? JSON.parse(savedPairings) : [];
         localStorage.setItem('pairings', JSON.stringify([...parsedPairings, newPairingList]));
       } else {
-        throw new Error(result.error || 'Unknown error');
+        throw new Error(result.error ?? 'Unknown error');
       }
     } catch (error) {
       console.error('Error parsing PDF:', error);
