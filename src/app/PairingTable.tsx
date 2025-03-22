@@ -6,9 +6,15 @@ import DisplaySettings from "./DisplaySettings";
 
 interface PairingTableProps {
   data: Pairing[];
+  selectedPairingNumbers: Set<string>;
+  onSelectionChange: (selectedPairingNumbers: Set<string>) => void;
 }
 
-const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
+const PairingTable: React.FC<PairingTableProps> = ({ 
+  data, 
+  selectedPairingNumbers,
+  onSelectionChange 
+}) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Pairing;
@@ -97,7 +103,7 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     
     pairing.flights.forEach(flight => {
       flight.daysOfWeek.forEach(day => {
-        flightsByDay.set(day, (flightsByDay.get(day) || 0) + 1);
+        flightsByDay.set(day, (flightsByDay.get(day) ?? 0) + 1);
       });
     });
 
@@ -213,6 +219,17 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
     }
     return value;
   }, [formatDuration]);
+
+  // Handle row selection
+  const handleRowClick = (pairingNumber: string) => {
+    const newSelection = new Set(selectedPairingNumbers);
+    if (newSelection.has(pairingNumber)) {
+      newSelection.delete(pairingNumber);
+    } else {
+      newSelection.add(pairingNumber);
+    }
+    onSelectionChange(newSelection);
+  };
 
   return (
     <div>
@@ -378,10 +395,19 @@ const PairingTable: React.FC<PairingTableProps> = ({ data }) => {
         </thead>
         <tbody>
           {filteredData.map((item, index) => (
-            <tr key={index} className="border-b text-center">
+            <tr 
+              key={index} 
+              className={`border-b text-center cursor-pointer hover:bg-gray-500 transition-colors ${
+                selectedPairingNumbers.has(item.pairingNumber) ? 'bg-blue-800' : ''
+              }`}
+              onClick={() => handleRowClick(item.pairingNumber)}
+            >
               <td className="p-2 border-b">
                 <button
-                  onClick={() => toggleFavorite(item.pairingNumber)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(item.pairingNumber);
+                  }}
                   className={`text-xl ${favoritePairings.has(item.pairingNumber) ? 'text-yellow-400' : 'text-gray-400'} hover:text-yellow-300 transition-colors`}
                   title={favoritePairings.has(item.pairingNumber) ? "Remove from favorites" : "Add to favorites"}
                 >

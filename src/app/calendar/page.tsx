@@ -1,37 +1,36 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Pairing } from "./parser";
-import PairingTable from "./PairingTable";
-import Navbar from "./components/Navbar";
+import { Pairing } from "../parser";
+import CalendarView from '../CalendarView';
+import Link from 'next/link';
+import Navbar from '../components/Navbar';
 
 interface PairingList {
   yearMonth: string;
   pairings: Pairing[];
 }
 
-export default function Home() {
+export default function CalendarPage() {
   const [pairingLists, setPairingLists] = useState<PairingList[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [isParsing, setIsParsing] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
   const [selectedPairingNumbers, setSelectedPairingNumbers] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('selectedPairings');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+  const [favoritePairings, setFavoritePairings] = useState<Set<string>>(new Set());
 
-  // Save selected pairings to localStorage when they change
+  // Load saved pairings and favorites on component mount
   useEffect(() => {
-    localStorage.setItem('selectedPairings', JSON.stringify(Array.from(selectedPairingNumbers)));
-  }, [selectedPairingNumbers]);
-
-  // Load saved pairings on component mount
-  useEffect(() => {
-    const loadSavedPairings = async () => {
+    const loadSavedData = async () => {
       try {
         const savedPairings = localStorage.getItem('pairings');
+        const savedFavorites = localStorage.getItem('favoritePairings');
+        const savedSelected = localStorage.getItem('selectedPairings');
+
         if (savedPairings) {
           const parsedPairings = JSON.parse(savedPairings);
           if (Array.isArray(parsedPairings) && parsedPairings.length > 0 && 'yearMonth' in parsedPairings[0] && 'pairings' in parsedPairings[0]) {
@@ -41,15 +40,23 @@ export default function Home() {
             localStorage.removeItem('pairings');
           }
         }
+
+        if (savedFavorites) {
+          setFavoritePairings(new Set(JSON.parse(savedFavorites)));
+        }
+
+        if (savedSelected) {
+          setSelectedPairingNumbers(new Set(JSON.parse(savedSelected)));
+        }
       } catch (error) {
-        console.error('Error loading saved pairings:', error);
+        console.error('Error loading saved data:', error);
         localStorage.removeItem('pairings');
       } finally {
         setIsLoadingSaved(false);
       }
     };
 
-    loadSavedPairings();
+    loadSavedData();
   }, []);
 
   // Get the currently selected pairing list
@@ -80,12 +87,37 @@ export default function Home() {
     }
   };
 
+  // Navigation functions
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const year = parseInt(selectedMonth.substring(0, 4));
+    const month = parseInt(selectedMonth.substring(4, 6));
+    
+    let newYear = year;
+    let newMonth = month;
+    
+    if (direction === 'prev') {
+      newMonth--;
+      if (newMonth < 1) {
+        newMonth = 12;
+        newYear--;
+      }
+    } else {
+      newMonth++;
+      if (newMonth > 12) {
+        newMonth = 1;
+        newYear++;
+      }
+    }
+    
+    setSelectedMonth(`${newYear}${String(newMonth).padStart(2, '0')}`);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <Navbar />
       <div className="container mx-auto p-8">
         <main className="flex flex-col gap-[32px] items-center sm:items-start">
-          <h1 className="text-2xl font-bold">Table View</h1>
+          <h1 className="text-2xl font-bold">Calendar View</h1>
           {isLoadingSaved ? (
             <div className="flex flex-col items-center gap-2">
               <p className="text-lg">Loading saved pairings...</p>
@@ -97,9 +129,13 @@ export default function Home() {
                 <>
                   <div className="flex flex-col gap-4">
                     <div className="flex items-center gap-2">
-                      <label htmlFor="month-select" className="text-lg">Select Month:</label>
+                      <button
+                        onClick={() => navigateMonth('prev')}
+                        className="p-2 border rounded hover:bg-gray-700"
+                      >
+                        ←
+                      </button>
                       <select
-                        id="month-select"
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
                         className="p-2 border rounded"
@@ -110,78 +146,43 @@ export default function Home() {
                           </option>
                         ))}
                       </select>
+                      <button
+                        onClick={() => navigateMonth('next')}
+                        className="p-2 border rounded hover:bg-gray-700"
+                      >
+                        →
+                      </button>
                     </div>
                     {selectedPairingList && (
                       <p className="text-lg">
                         Showing {selectedPairingList.pairings.length} pairings for {formatMonthDisplay(selectedPairingList.yearMonth)}
+                        {favoritePairings.size > 0 && (
+                          <span className="ml-2 text-yellow-400">
+                            ({favoritePairings.size} favorites)
+                          </span>
+                        )}
                       </p>
                     )}
                   </div>
 
                   <div className="w-full">
-                    <PairingTable
-                      data={selectedPairingList?.pairings || []}
+                    <CalendarView
+                      pairings={selectedPairingList?.pairings || []}
+                      selectedMonth={selectedMonth}
                       selectedPairingNumbers={selectedPairingNumbers}
-                      onSelectionChange={setSelectedPairingNumbers}
+                      favoritePairings={favoritePairings}
                     />
                   </div>
                 </>
               ) : (
                 <div className="text-center">
-                  <p className="text-lg mb-4">No pairings found. Please upload a pairing file.</p>
-                  {isParsing ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <p className="text-lg">Parsing PDF...</p>
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                    </div>
-                  ) : (
-                    <>
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-
-                          setIsParsing(true);
-                          try {
-                            const { parsePDF } = await import('./parser');
-                            const pairings = await parsePDF(file);
-                            
-                            // Extract month and year from filename (e.g., "202503.pdf")
-                            const filename = file.name;
-                            const yearMonth = filename.split('.')[0];
-                            
-                            const newPairingList = {
-                              yearMonth,
-                              pairings
-                            };
-                            
-                            setPairingLists(prev => [...prev, newPairingList]);
-                            setSelectedMonth(yearMonth);
-                            
-                            // Save to localStorage
-                            const savedPairings = localStorage.getItem('pairings');
-                            const parsedPairings = savedPairings ? JSON.parse(savedPairings) : [];
-                            localStorage.setItem('pairings', JSON.stringify([...parsedPairings, newPairingList]));
-                          } catch (error) {
-                            console.error('Error parsing PDF:', error);
-                            alert('Error parsing PDF file. Please try again.');
-                          } finally {
-                            setIsParsing(false);
-                          }
-                        }}
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <label
-                        htmlFor="file-upload"
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded cursor-pointer"
-                      >
-                        Upload PDF
-                      </label>
-                    </>
-                  )}
+                  <p className="text-lg mb-4">No pairings found. Please upload a pairing file in the table view first.</p>
+                  <Link 
+                    href="/"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    Go to Table View
+                  </Link>
                 </div>
               )}
             </>
@@ -190,4 +191,4 @@ export default function Home() {
       </div>
     </div>
   );
-}
+} 
