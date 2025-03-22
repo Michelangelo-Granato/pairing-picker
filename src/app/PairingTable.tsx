@@ -61,7 +61,7 @@ const Row = React.memo(({
       }`}
       onClick={() => handleRowClick(item.pairingNumber)}
     >
-      <div className="p-1 border-b w-[60px] flex-shrink-0">
+      <div className="p-1 w-[60px] flex-shrink-0">
         <button
           onClick={(e) => toggleFavorite(e, item.pairingNumber)}
           className={`text-xl ${favoritePairings.has(item.pairingNumber) ? 'text-yellow-400' : 'text-gray-400'} hover:text-yellow-300 transition-colors`}
@@ -69,7 +69,7 @@ const Row = React.memo(({
           ★
         </button>
       </div>
-      <div className="p-1 border-b w-[275px] flex-shrink-0 text-center">
+      <div className="p-1 w-[275px] flex-shrink-0 text-center">
         {item.flights.map((flight, idx) => (
           <div key={idx}>
             <FlightDisplay flight={flight} />
@@ -77,7 +77,7 @@ const Row = React.memo(({
         ))}
       </div>
       {visibleHeaders.map((header) => (
-        <div key={header.key} className="p-1 border-b w-[90px] flex-shrink-0">
+        <div key={header.key} className="p-1 w-[90px] flex-shrink-0 flex items-center justify-center h-full">
           {formatCellValue(header.key, String(item[header.key]))}
         </div>
       ))}
@@ -196,18 +196,18 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
     // Time-based filters
     if (filters.departureTimeAfter || filters.arrivalTimeBefore) {
       return item.flights.every((flight) => {
-        const departureTimeAfter =
-          !filters.departureTimeAfter ||
-          (filters.departureTimeCondition === "greater"
-            ? flight.departureTime >= filters.departureTimeAfter
-            : flight.departureTime <= filters.departureTimeAfter);
-        const arrivalTimeBefore =
-          !filters.arrivalTimeBefore ||
-          (filters.arrivalTimeCondition === "less"
-            ? flight.arrivalTime <= filters.arrivalTimeBefore
-            : flight.arrivalTime >= filters.arrivalTimeBefore);
-        return departureTimeAfter && arrivalTimeBefore;
-      });
+      const departureTimeAfter =
+        !filters.departureTimeAfter ||
+        (filters.departureTimeCondition === "greater"
+          ? flight.departureTime >= filters.departureTimeAfter
+          : flight.departureTime <= filters.departureTimeAfter);
+      const arrivalTimeBefore =
+        !filters.arrivalTimeBefore ||
+        (filters.arrivalTimeCondition === "less"
+          ? flight.arrivalTime <= filters.arrivalTimeBefore
+          : flight.arrivalTime >= filters.arrivalTimeBefore);
+      return departureTimeAfter && arrivalTimeBefore;
+    });
     }
 
     return true;
@@ -351,8 +351,8 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
         <div className="flex flex-col gap-4 mb-4">
           <div className="flex flex-col gap-2">
             <label className="font-medium">Search</label>
-            <input
-              type="text"
+      <input
+        type="text"
               placeholder="Search pairings..."
               onChange={(e) => debouncedSetSearchTerm(e.target.value)}
               className="p-2 border rounded w-full"
@@ -368,20 +368,20 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
             <div className="flex flex-col gap-2">
               <label className="font-medium">Departure Time</label>
               <div className="flex items-center gap-2">
-                <select
-                  value={filters.departureTimeCondition}
-                  onChange={(e) =>
+        <select
+          value={filters.departureTimeCondition}
+          onChange={(e) =>
                     setFilters(prev => ({ ...prev, departureTimeCondition: e.target.value }))
-                  }
+          }
                   className="p-2 border rounded flex-1 min-w-[100px]"
-                >
+        >
                   <option value="greater">After</option>
                   <option value="less">Before</option>
-                </select>
-                <input
-                  type="time"
-                  value={filters.departureTimeAfter}
-                  onChange={(e) =>
+        </select>
+        <input
+          type="time"
+          value={filters.departureTimeAfter}
+          onChange={(e) =>
                     setFilters(prev => ({ ...prev, departureTimeAfter: e.target.value }))
                   }
                   className="p-2 border rounded flex-1"
@@ -400,20 +400,20 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
             <div className="flex flex-col gap-2">
               <label className="font-medium">Arrival Time</label>
               <div className="flex items-center gap-2">
-                <select
-                  value={filters.arrivalTimeCondition}
-                  onChange={(e) =>
+        <select
+          value={filters.arrivalTimeCondition}
+          onChange={(e) =>
                     setFilters(prev => ({ ...prev, arrivalTimeCondition: e.target.value }))
-                  }
+          }
                   className="p-2 border rounded flex-1 min-w-[100px]"
-                >
+        >
                   <option value="less">Before</option>
                   <option value="greater">After</option>
-                </select>
-                <input
-                  type="time"
-                  value={filters.arrivalTimeBefore}
-                  onChange={(e) =>
+        </select>
+        <input
+          type="time"
+          value={filters.arrivalTimeBefore}
+          onChange={(e) =>
                     setFilters(prev => ({ ...prev, arrivalTimeBefore: e.target.value }))
                   }
                   className="p-2 border rounded flex-1"
@@ -428,7 +428,7 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
                   </button>
                 )}
               </div>
-            </div>
+      </div>
             <div className="flex flex-col gap-2">
               <label className="font-medium">Max Flights Per Day</label>
               <div className="flex items-center gap-2">
@@ -525,12 +525,12 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
             <div className="w-full bg-gray-600">
               <div className="flex border-b">
                 <div className="p-1 w-[60px] flex-shrink-0"></div>
-                <div className="p-1 w-[275px] flex-shrink-0">Flights</div>
+                <div className="p-1 w-[275px] flex-shrink-0 text-center">Flights</div>
                 {visibleHeaders.map((header) => (
                   <div
                     key={header.key}
                     onClick={() => requestSort(header.key)}
-                    className="p-1 cursor-pointer w-[90px] flex-shrink-0"
+                    className="p-1 cursor-pointer w-[90px] flex-shrink-0 text-center"
                   >
                     {header.label} {sortConfig?.key === header.key && (sortConfig.direction === "ascending" ? "▲" : "▼")}
                   </div>
@@ -538,7 +538,7 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
               </div>
               {isPending ? (
                 <div className="flex justify-center items-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-white"></div>
                 </div>
               ) : (
                 <List
