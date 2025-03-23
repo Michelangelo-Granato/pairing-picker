@@ -5,13 +5,10 @@ import { describe, it, expect } from "@jest/globals";
 
 describe("parsePDF", () => {
   it("should parse the PDF and return the correct pairings", async () => {
-    const filePath = path.resolve(__dirname, "../../test/data/sample.pdf");
+    const filePath = path.join(process.cwd(), 'test', 'data', 'sample.pdf');
     const fileBuffer = fs.readFileSync(filePath);
-    const file = new File([fileBuffer], "sample.pdf", {
-      type: "application/pdf",
-    });
     const numPairings = 4;
-    const pairings = await parsePDF(file, numPairings);
+    const pairings = await parsePDF(fileBuffer, numPairings);
 
     expect(pairings).toBeDefined();
     expect(pairings.length).toBe(numPairings);

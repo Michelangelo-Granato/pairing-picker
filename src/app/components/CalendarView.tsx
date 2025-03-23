@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Pairing } from './parser';
+import { Pairing } from '../types';
 
 interface CalendarViewProps {
   pairings: Pairing[];

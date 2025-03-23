@@ -1,50 +1,20 @@
 "use client";
 import React, { useState, useMemo, useCallback, useEffect, useRef, useTransition } from "react";
 import { VariableSizeList as List } from 'react-window';
-import { Pairing } from "./parser";
 import FlightDisplay from "./FlightDisplay";
 import DisplaySettings from "./DisplaySettings";
 import debounce from 'lodash/debounce';
-import airports from '../data/airports.json';
-
-interface Airport {
-  iata: string;
-  city: string;
-  name: string;
-}
+import airports from '../../data/airports.json';
+import { Airport, Pairing, PairingTableProps, PairingTableRowData, Flight } from "../types";
+import { createAirportMap, createFlightIndex, formatDuration } from "../utils/flight";
+import { convertTo24Hour, formatTimeForDisplay } from "../utils/time";
+import { getFlightsPerDay } from "../utils/pairing";
+import { sortPairings, SortConfig } from "../utils/sorting";
+import { loadFavorites, saveFavorites, toggleFavorite } from "../utils/favorites";
+import PairingTableRow from "./PairingTableRow";
 
 // Create a static map for airport codes to cities
-const airportToCity = new Map<string, string>();
-(airports as Airport[]).forEach(airport => {
-  if (airport.iata && airport.city) {
-    airportToCity.set(airport.iata.toUpperCase(), airport.city);
-  }
-});
-
-interface PairingTableProps {
-  data: Pairing[];
-  selectedPairingNumbers: Set<string>;
-  onSelectionChange: (selectedPairingNumbers: Set<string>) => void;
-}
-
-// Memoize expensive computations outside component
-const createFlightIndex = (pairing: Pairing) => {
-  return pairing.flights.reduce((acc, flight) => {
-    const departureCity = airportToCity.get(flight.departure.toUpperCase()) || '';
-    const arrivalCity = airportToCity.get(flight.arrival.toUpperCase()) || '';
-    
-    acc.push(
-      flight.departure.toLowerCase(),
-      departureCity.toLowerCase(),
-      flight.arrival.toLowerCase(),
-      arrivalCity.toLowerCase()
-    );
-    if (flight.hasLayover && flight.layover) {
-      acc.push(flight.layover.hotel.toLowerCase());
-    }
-    return acc;
-  }, [] as string[]).join(' ');
-};
+const airportToCity = createAirportMap(airports as Airport[]);
 
 // Row component for virtualized list
 const Row = React.memo(({ 
@@ -60,15 +30,7 @@ const Row = React.memo(({
   index, 
   style 
 }: {
-  data: {
-    items: Pairing[];
-    visibleHeaders: { key: keyof Pairing; label: string }[];
-    formatCellValue: (key: keyof Pairing, value: string) => string;
-    handleRowClick: (pairingNumber: string) => void;
-    toggleFavorite: (e: React.MouseEvent, pairingNumber: string) => void;
-    selectedPairingNumbers: Set<string>;
-    favoritePairings: Set<string>;
-  };
+  data: PairingTableRowData;
   index: number;
   style: React.CSSProperties;
 }) => {
@@ -114,12 +76,11 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
   onSelectionChange 
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortConfig, setSortConfig] = useState<{
-    key: keyof Pairing;
-    direction: "ascending" | "descending";
-  } | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [favoritePairings, setFavoritePairings] = useState<Set<string>>(new Set());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [departureTimeFormat, setDepartureTimeFormat] = useState<'24h' | '12h'>('24h');
+  const [arrivalTimeFormat, setArrivalTimeFormat] = useState<'24h' | '12h'>('24h');
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set([
     "pairingNumber",
     "operatingDates",
@@ -141,7 +102,10 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
 
   // Pre-compute flight indices for search
   const flightIndices = useMemo(() => {
-    return new Map(data.map(pairing => [pairing.pairingNumber, createFlightIndex(pairing)]));
+    return new Map(data.map(pairing => [
+      pairing.pairingNumber, 
+      createFlightIndex(pairing, airportToCity)
+    ]));
   }, [data]);
 
   // Debounced search term update
@@ -168,17 +132,6 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
     headers.filter(header => visibleColumns.has(header.key)),
     [headers, visibleColumns]
   );
-
-  // Optimize flight count calculation
-  const getFlightsPerDay = useCallback((pairing: Pairing): number => {
-    const flightsByDay = new Map<number, number>();
-    for (const flight of pairing.flights) {
-      for (const day of flight.daysOfWeek) {
-        flightsByDay.set(day, (flightsByDay.get(day) ?? 0) + 1);
-      }
-    }
-    return Math.max(...Array.from(flightsByDay.values()));
-  }, []);
 
   // Memoize filter function
   const filterPairing = useCallback((item: Pairing) => {
@@ -232,36 +185,28 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
     }
 
     return true;
-  }, [searchTerm, filters, favoritePairings, flightIndices, getFlightsPerDay]);
+  }, [searchTerm, filters, favoritePairings, flightIndices]);
+
+  // Load favorites from localStorage
+  useEffect(() => {
+    setFavoritePairings(loadFavorites());
+  }, []);
+
+  // Save favorites to localStorage
+  useEffect(() => {
+    saveFavorites(favoritePairings);
+  }, [favoritePairings]);
+
+  // Optimize favorite toggling
+  const handleToggleFavorite = useCallback((e: React.MouseEvent, pairingNumber: string) => {
+    e.stopPropagation();
+    setFavoritePairings(prev => toggleFavorite(prev, pairingNumber));
+  }, []);
 
   // Memoize the filtered and sorted data
   const filteredData = useMemo(() => {
     const filtered = data.filter(filterPairing);
-    
-    if (sortConfig !== null) {
-      return [...filtered].sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-        
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          const numA = Number(aValue);
-          const numB = Number(bValue);
-          
-          if (!isNaN(numA) && !isNaN(numB)) {
-            return sortConfig.direction === "ascending"
-              ? numA - numB
-              : numB - numA;
-          }
-          
-          return sortConfig.direction === "ascending"
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-        }
-        return 0;
-      });
-    }
-    
-    return filtered;
+    return sortPairings(filtered, sortConfig);
   }, [data, filterPairing, sortConfig]);
 
   // Optimize sort handler
@@ -276,19 +221,12 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
     });
   }, []);
 
-  // Memoize formatters
-  const formatDuration = useCallback((duration: string) => {
-    const hours = Math.floor(parseInt(duration) / 100);
-    const minutes = parseInt(duration) % 100;
-    return `${hours}h ${minutes}m`;
-  }, []);
-
   const formatCellValue = useCallback((key: keyof Pairing, value: string) => {
     if (key === 'blockTime' || key === 'tafb') {
       return formatDuration(value);
     }
     return value;
-  }, [formatDuration]);
+  }, []);
 
   // Optimize row selection
   const handleRowClick = useCallback((pairingNumber: string) => {
@@ -299,62 +237,16 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
     ));
   }, [selectedPairingNumbers, onSelectionChange]);
 
-  // Optimize favorite toggling
-  const toggleFavorite = useCallback((e: React.MouseEvent, pairingNumber: string) => {
-    e.stopPropagation();
-    setFavoritePairings(prev => {
-      const next = new Set(prev);
-      if (next.has(pairingNumber)) {
-        next.delete(pairingNumber);
-      } else {
-        next.add(pairingNumber);
-      }
-      return next;
-    });
-  }, []);
-
-  // Load favorites from localStorage
-  useEffect(() => {
-    const savedFavorites = localStorage.getItem('favoritePairings');
-    if (savedFavorites) {
-      setFavoritePairings(new Set(JSON.parse(savedFavorites)));
-    }
-  }, []);
-
-  // Save favorites to localStorage
-  useEffect(() => {
-    localStorage.setItem('favoritePairings', JSON.stringify(Array.from(favoritePairings)));
-  }, [favoritePairings]);
-
   // Calculate total row height based on number of flights and layovers
   const getRowHeight = useCallback((index: number) => {
     const item = filteredData[index];
     const numFlights = item.flights.length;
-    const numLayovers = item.flights.reduce((count, flight) => 
+    const numLayovers = item.flights.reduce((count: number, flight: Flight) => 
       count + (flight.hasLayover ? 1 : 0), 0);
     
     // height per flight (48px) + height per layover (48px)
     return 12 + (numFlights * 48) + (numLayovers * 48);
   }, [filteredData]);
-
-  // Memoize row data to prevent unnecessary re-renders
-  const rowData = useMemo(() => ({
-    items: filteredData,
-    visibleHeaders,
-    formatCellValue,
-    handleRowClick,
-    toggleFavorite,
-    selectedPairingNumbers,
-    favoritePairings
-  }), [
-    filteredData,
-    visibleHeaders,
-    formatCellValue,
-    handleRowClick,
-    toggleFavorite,
-    selectedPairingNumbers,
-    favoritePairings
-  ]);
 
   // Reference to the virtualized list
   const listRef = useRef<List>(null);
@@ -365,6 +257,15 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
       listRef.current.resetAfterIndex(0);
     }
   }, [filteredData]);
+
+  // Handle time input change
+  const handleTimeChange = (value: string, type: 'departure' | 'arrival', format: '12h' | '24h') => {
+    const time24h = convertTo24Hour(value, format);
+    setFilters(prev => ({
+      ...prev,
+      [type === 'departure' ? 'departureTimeAfter' : 'arrivalTimeBefore']: time24h
+    }));
+  };
 
   return (
     <div>
@@ -387,7 +288,15 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
         ) : (
           <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="flex flex-col gap-2">
-              <label className="font-medium">Departure Time</label>
+              <div className="flex justify-between items-center">
+                <label className="font-medium">Departure Time</label>
+                <button
+                  onClick={() => setDepartureTimeFormat(prev => prev === '24h' ? '12h' : '24h')}
+                  className="text-sm text-gray-400 hover:text-white transition-colors px-2 py-1 rounded bg-gray-700 hover:bg-gray-600"
+                >
+                  {departureTimeFormat.toUpperCase()}
+                </button>
+              </div>
               <div className="flex items-center gap-2">
         <select
           value={filters.departureTimeCondition}
@@ -400,11 +309,13 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
                   <option value="less">Before</option>
         </select>
         <input
-          type="time"
-          value={filters.departureTimeAfter}
-          onChange={(e) =>
-                    setFilters(prev => ({ ...prev, departureTimeAfter: e.target.value }))
+                  type={departureTimeFormat === '24h' ? "time" : "text"}
+                  value={departureTimeFormat === '24h' 
+                    ? filters.departureTimeAfter 
+                    : formatTimeForDisplay(filters.departureTimeAfter, '12h')
                   }
+                  onChange={(e) => handleTimeChange(e.target.value, 'departure', departureTimeFormat)}
+                  placeholder={departureTimeFormat === '24h' ? "HH:mm" : "HH:mm AM/PM"}
                   className="p-2 border rounded flex-1"
                 />
                 {filters.departureTimeAfter && (
@@ -419,7 +330,15 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="font-medium">Arrival Time</label>
+              <div className="flex justify-between items-center">
+                <label className="font-medium">Arrival Time</label>
+                <button
+                  onClick={() => setArrivalTimeFormat(prev => prev === '24h' ? '12h' : '24h')}
+                  className="text-sm text-gray-400 hover:text-white transition-colors px-2 py-1 rounded bg-gray-700 hover:bg-gray-600"
+                >
+                  {arrivalTimeFormat.toUpperCase()}
+                </button>
+              </div>
               <div className="flex items-center gap-2">
         <select
           value={filters.arrivalTimeCondition}
@@ -432,11 +351,13 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
                   <option value="greater">After</option>
         </select>
         <input
-          type="time"
-          value={filters.arrivalTimeBefore}
-          onChange={(e) =>
-                    setFilters(prev => ({ ...prev, arrivalTimeBefore: e.target.value }))
+                  type={arrivalTimeFormat === '24h' ? "time" : "text"}
+                  value={arrivalTimeFormat === '24h' 
+                    ? filters.arrivalTimeBefore 
+                    : formatTimeForDisplay(filters.arrivalTimeBefore, '12h')
                   }
+                  onChange={(e) => handleTimeChange(e.target.value, 'arrival', arrivalTimeFormat)}
+                  placeholder={arrivalTimeFormat === '24h' ? "HH:mm" : "HH:mm AM/PM"}
                   className="p-2 border rounded flex-1"
                 />
                 {filters.arrivalTimeBefore && (
@@ -506,8 +427,7 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
               type="checkbox"
               checked={filters.showFavoritesOnly}
               onChange={(e) => setFilters(prev => ({ ...prev, showFavoritesOnly: e.target.checked }))}
-              className="rounded"
-            />
+              className="rounded"/>
             Show Favorites Only
           </label>
           <div className="relative">
@@ -566,11 +486,19 @@ const PairingTable: React.FC<PairingTableProps> = React.memo(({
                   ref={listRef}
                   height={600}
                   itemCount={filteredData.length}
-                  itemData={rowData}
+                  itemData={{
+                    items: filteredData,
+                    visibleHeaders,
+                    formatCellValue,
+                    handleRowClick,
+                    toggleFavorite: handleToggleFavorite,
+                    selectedPairingNumbers,
+                    favoritePairings
+                  }}
                   itemSize={getRowHeight}
                   width="100%"
                 >
-                  {Row}
+                  {PairingTableRow}
                 </List>
               )}
             </div>

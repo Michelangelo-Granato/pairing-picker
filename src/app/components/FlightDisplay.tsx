@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
-import { Flight } from "./parser";
-import airports from '../data/airports.json';
+import { Flight } from "../types";
+import airports from '../../data/airports.json';
 
 interface Airport {
   iata: string;
@@ -97,4 +97,4 @@ const FlightDisplay: React.FC<FlightDisplayProps> = ({ flight }) => {
   );
 };
 
-export default React.memo(FlightDisplay); 
+export default React.memo(FlightDisplay);

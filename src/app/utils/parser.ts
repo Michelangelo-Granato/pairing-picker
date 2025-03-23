@@ -1,37 +1,9 @@
 "use server";
 import pdf from "pdf-parse";
+import { Pairing } from "../types";
 
 // Cache for parsed PDFs
 const pdfCache = new Map<string, Promise<Pairing[]>>();
-
-export interface Flight {
-  aircraft: string;
-  flightNumber: string;
-  departure: string;
-  arrival: string;
-  departureTime: string;
-  arrivalTime: string;
-  flightTime: string;
-  dutyTime: string;
-  hasLayover: boolean;
-  layover: Layover | null;
-  daysOfWeek: number[];  // Array of days (1=Monday, 7=Sunday)
-}
-
-interface Layover {
-  hotel: string;
-  duration: string;
-}
-
-export interface Pairing {
-  pairingNumber: string;
-  operatingDates: string;
-  flights: Flight[];
-  layovers: number;
-  blockTime: string;
-  tafb: string;
-  totalAllowance: string;
-}
 
 // Pre-compile regex patterns for better performance
 const OPERATING_DATE_REGEX = /\w{5}\s+-\s+\w{5}/;
@@ -221,10 +193,10 @@ export async function parsePairingFile(lines: string[], numPairings?: number): P
   return pairings;
 }
 
-async function parsePDF(file: File, numPairings?: number): Promise<Pairing[]> {
+async function parsePDF(file: File | Buffer, numPairings?: number): Promise<Pairing[]> {
   try {
     // Create a cache key based on file name and size
-    const cacheKey = `${file.name}-${file.size}`;
+    const cacheKey = file instanceof File ? `${file.name}-${file.size}` : 'buffer';
     
     // Check if we have a cached result
     if (pdfCache.has(cacheKey)) {
@@ -233,8 +205,17 @@ async function parsePDF(file: File, numPairings?: number): Promise<Pairing[]> {
 
     // Create a new promise for parsing
     const parsePromise = (async () => {
-      const arrayBuffer = await file.arrayBuffer();
-      const dataBuffer = Buffer.from(arrayBuffer);
+      let dataBuffer: Buffer;
+      
+      if (file instanceof File) {
+        // Browser environment
+        const arrayBuffer = await file.arrayBuffer();
+        dataBuffer = Buffer.from(arrayBuffer);
+      } else {
+        // Node.js environment
+        dataBuffer = file;
+      }
+
       const data = await pdf(dataBuffer);
       const lines = data.text.split("\n");
       return parsePairingFile(lines, numPairings);
