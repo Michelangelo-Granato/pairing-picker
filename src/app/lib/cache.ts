@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { Pairing } from '../parser';
+import { Pairing } from '../types';
 
 export interface CachedPairingList {
   yearMonth: string;
