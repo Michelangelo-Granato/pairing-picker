@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Pairing } from "../parser";
-import CalendarView from '../CalendarView';
+import { Pairing } from "../types";
+import CalendarView from '../components/CalendarView';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
 import { useLocalStorage } from "../hooks/useLocalStorage";
