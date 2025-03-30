@@ -241,9 +241,30 @@ export default function PairingManager() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
         </div>
       ) : loadError ? (
-        <div className="flex flex-col items-center gap-2 text-red-500">
-          <p className="text-base sm:text-lg">{loadError}</p>
-          <p className="text-sm">Please check if the data folder exists and contains valid PDF files.</p>
+        <div className="text-center w-full">
+          <p className="text-base sm:text-lg mb-4">Welcome, Please upload a pairing file to get started.</p>
+          {isParsing ? (
+            <div className="flex items-center gap-2">
+              <p className="text-lg">Parsing PDF...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : (
+            <>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="file-upload"
+              />
+              <label
+                htmlFor="file-upload"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded cursor-pointer"
+              >
+                Upload PDF
+              </label>
+            </>
+          )}
         </div>
       ) : (
         <>
