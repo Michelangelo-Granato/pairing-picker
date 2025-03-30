@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pairing Picker
+
+A web application for managing and viewing airline crew pairings. This application allows you to upload and view pairing PDFs, select specific pairings, and manage them efficiently.
+
+## Features
+
+- Upload and parse pairing PDF files
+- View pairings in a table format
+- Select and manage specific pairings
+- Support for multiple months of pairings
+- Local storage for persistence
+- Responsive design for all screen sizes
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js (v18 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/pairing-picker.git
+cd pairing-picker
+```
+
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Run the development server:
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Upload Pairing PDF**
+   - Click the "Upload PDF" button
+   - Select your pairing PDF file
+   - The file will be automatically parsed and displayed
 
-## Learn More
+2. **View Pairings**
+   - Use the month selector to switch between different months
+   - View all pairings in the table format
+   - Select specific pairings by clicking on them
 
-To learn more about Next.js, take a look at the following resources:
+3. **Manage Pairings**
+   - Selected pairings are automatically saved to local storage
+   - You can view and manage your selections across sessions
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Technical Details
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Built with Next.js and TypeScript
+- Uses Tailwind CSS for styling
+- Implements client-side PDF parsing
+- Stores data in browser's local storage
+- Responsive design with mobile-first approach
 
-## Deploy on Vercel
+## Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
